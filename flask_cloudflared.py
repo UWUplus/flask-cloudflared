@@ -41,6 +41,8 @@ def _run_cloudflared(port):
             attempts += 1
             time.sleep(3)
             continue
+    if attempts == 10:
+        raise Exception(f"Can't connect to Cloudflare Edge")
     return tunnel_url
     
 def _download_cloudflared(cloudflared_path):
