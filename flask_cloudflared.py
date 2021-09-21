@@ -4,7 +4,6 @@ import subprocess
 import tempfile
 import shutil
 import os
-import zipfile
 import platform
 import time
 import re
@@ -14,18 +13,17 @@ from pathlib import Path
 def _get_command():
     system = platform.system()
     if system == "Windows":
-        print("cloudflared.exe")
-        command = "cloudflared.exe"
-    elif system == "Linux" or system == "Darwin":
-        command = "cloudflared"
+        command = "cloudflared-windows-amd64.exe"
+    elif system == "Linux":
+        command = "cloudflared-linux-amd64"
     else:
         raise Exception("{system} is not supported".format(system=system))
     return command
 
 def _run_cloudflared(port):
     command = _get_command()
-    cloudflared_path = str(Path(tempfile.gettempdir(), "cloudflared"))
-    _download_cloudflared(cloudflared_path)
+    cloudflared_path = str(Path(tempfile.gettempdir()))
+    _download_cloudflared(cloudflared_path, command)
     executable = str(Path(cloudflared_path, command))
     os.chmod(executable, 0o777)
     cloudflared = subprocess.Popen([executable, 'tunnel', '--url', 'http://127.0.0.1:' + str(port), '--metrics', '127.0.0.1:8099'])
@@ -45,21 +43,17 @@ def _run_cloudflared(port):
         raise Exception(f"Can't connect to Cloudflare Edge")
     return tunnel_url
     
-def _download_cloudflared(cloudflared_path):
-    if Path(cloudflared_path).exists():
+def _download_cloudflared(cloudflared_path, command):
+    if Path(cloudflared_path, command).exists():
         return
     system = platform.system()
-    if system == "Darwin":
-        url = "https://bin.equinox.io/c/VdrWdbjqyF/cloudflared-stable-darwin-amd64.zip"
-    elif system == "Windows":
-        url = "https://bin.equinox.io/c/VdrWdbjqyF/cloudflared-stable-windows-amd64.zip"
+    if system == "Windows":
+        url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
     elif system == "Linux":
-        url = "https://bin.equinox.io/c/VdrWdbjqyF/cloudflared-stable-linux-amd64.zip"
+        url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
     else:
         raise Exception(f"{system} is not supported")
-    download_path = _download_file(url)
-    with zipfile.ZipFile(download_path, "r") as zip_ref:
-        zip_ref.extractall(cloudflared_path)
+    _download_file(url)
 
 def _download_file(url):
     local_filename = url.split('/')[-1]
