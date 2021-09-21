@@ -26,7 +26,7 @@ def _run_cloudflared(port):
     _download_cloudflared(cloudflared_path, command)
     executable = str(Path(cloudflared_path, command))
     os.chmod(executable, 0o777)
-    cloudflared = subprocess.Popen([executable, 'tunnel', '--url', 'http://127.0.0.1:' + str(port), '--metrics', '127.0.0.1:8099'])
+    cloudflared = subprocess.Popen([executable, 'tunnel', '--url', 'http://127.0.0.1:' + str(port), '--metrics', '127.0.0.1:8099'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     atexit.register(cloudflared.terminate)
     localhost_url = "http://127.0.0.1:8099/metrics"
     attempts = 0
