@@ -24,7 +24,7 @@ def _get_command():
     elif system == "Linux":
         if machine == "x86_64":
             command = "cloudflared-linux-amd64"
-        elif machine == "i386";
+        elif machine == "i386":
             command = "cloudflared-linux-386"
         elif machine == "arm":
             command = "cloudflared-linux-arm"
@@ -93,7 +93,7 @@ def _download_cloudflared(cloudflared_path, command):
     elif system == "Linux":
         if machine == "x86_64":
             url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
-        elif machine == "i386";
+        elif machine == "i386":
             url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-386"
         elif machine == "arm":
             url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm"
