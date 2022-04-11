@@ -14,6 +14,7 @@ from pathlib import Path
 def _get_command():
     system = platform.system()
     machine = platform.machine()
+    print("Machine: " + machine)
     if system == "Windows":
         if machine == "x86_64":
             command = "cloudflared-windows-amd64.exe"
@@ -35,6 +36,8 @@ def _get_command():
     elif system == "Darwin":
         if machine == "x86_64":
             command = "cloudflared"
+        elif machine == "arm64":
+            command = "cloudflared"
         else:
             raise Exception("{machine} is not supported on Darwin".format(machine=machine))
     else:
@@ -52,16 +55,17 @@ def _extract_tarball(tar_url, extract_path='.'):
 
 def _run_cloudflared(port):
     system = platform.system()
+    machine = platform.machine()
     command = _get_command()
     cloudflared_path = str(Path(tempfile.gettempdir()))
-    if (system == "Windows" or system == "Linux"):
-        _download_cloudflared(cloudflared_path, command)
-        executable = str(Path(cloudflared_path, command))
-    if system == "Darwin":
+    # Untar on Darwin, as there is an exclusive binary.
+    if (system == "Darwin" and machine == "x86_64"):
         _download_cloudflared(cloudflared_path, "cloudflared-darwin-amd64.tgz")
         _extract_tarball(cloudflared_path, "cloudflared-darwin-amd64.tgz")
-
-
+        executable = str(Path(cloudflared_path, command))
+    else:
+        _download_cloudflared(cloudflared_path, command)
+        executable = str(Path(cloudflared_path, command))
     os.chmod(executable, 0o777)
     cloudflared = subprocess.Popen([executable, 'tunnel', '--url', 'http://127.0.0.1:' + str(port), '--metrics', '127.0.0.1:8099'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     atexit.register(cloudflared.terminate)
@@ -102,6 +106,8 @@ def _download_cloudflared(cloudflared_path, command):
     elif system == "Darwin":
         if machine == "x86_64":
             url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64"
+        if machine == "arm64":
+            url = "https://github.com/cloudflare/cloudflared/releases/download/2022.4.0/cloudflared-linux-arm64"
     _download_file(url)
 
 def _download_file(url):
