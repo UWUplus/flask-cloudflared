@@ -14,7 +14,6 @@ from pathlib import Path
 def _get_command():
     system = platform.system()
     machine = platform.machine()
-    print("Machine: " + machine)
     if system == "Windows":
         if machine == "x86_64":
             command = "cloudflared-windows-amd64.exe"
@@ -37,6 +36,7 @@ def _get_command():
         if machine == "x86_64":
             command = "cloudflared"
         elif machine == "arm64":
+            print("* On a MacOS system with an Apple Silicon chip, Rosetta 2 needs to be installed, refer to this guide to learn more: https://support.apple.com/en-us/HT211861")
             command = "cloudflared"
         else:
             raise Exception("{machine} is not supported on Darwin".format(machine=machine))
@@ -45,11 +45,10 @@ def _get_command():
     return command
 
 # Needed for the darwin package
-def _extract_tarball(tar_url, extract_path='.'):
-    print(tar_url)
-    tar = tarfile.open(tar_url, 'r')
+def _extract_tarball(tar_path, filename):
+    tar = tarfile.open(tar_path+'/'+filename, 'r')
     for item in tar:
-        tar.extract(item, extract_path)
+        tar.extract(item, tar_path)
         if item.name.find(".tgz") != -1 or item.name.find(".tar") != -1:
             extract(item.name, "./" + item.name[:item.name.rfind('/')])
 
@@ -59,7 +58,7 @@ def _run_cloudflared(port):
     command = _get_command()
     cloudflared_path = str(Path(tempfile.gettempdir()))
     # Untar on Darwin, as there is an exclusive binary.
-    if (system == "Darwin" and machine == "x86_64"):
+    if (system == "Darwin"):
         _download_cloudflared(cloudflared_path, "cloudflared-darwin-amd64.tgz")
         _extract_tarball(cloudflared_path, "cloudflared-darwin-amd64.tgz")
         executable = str(Path(cloudflared_path, command))
@@ -67,7 +66,10 @@ def _run_cloudflared(port):
         _download_cloudflared(cloudflared_path, command)
         executable = str(Path(cloudflared_path, command))
     os.chmod(executable, 0o777)
-    cloudflared = subprocess.Popen([executable, 'tunnel', '--url', 'http://127.0.0.1:' + str(port), '--metrics', '127.0.0.1:8099'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    if (system == "Darwin" and machine == "arm64"):
+        cloudflared = subprocess.Popen(['arch', '-x86_64', executable, 'tunnel', '--url', 'http://127.0.0.1:' + str(port), '--metrics', '127.0.0.1:8099'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    else:
+        cloudflared = subprocess.Popen([executable, 'tunnel', '--url', 'http://127.0.0.1:' + str(port), '--metrics', '127.0.0.1:8099'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     atexit.register(cloudflared.terminate)
     localhost_url = "http://127.0.0.1:8099/metrics"
     attempts = 0
@@ -105,9 +107,9 @@ def _download_cloudflared(cloudflared_path, command):
             url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64"
     elif system == "Darwin":
         if machine == "x86_64":
-            url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64"
+            url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64.tgz"
         if machine == "arm64":
-            url = "https://github.com/cloudflare/cloudflared/releases/download/2022.4.0/cloudflared-linux-arm64"
+            url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64.tgz"
     _download_file(url)
 
 def _download_file(url):
