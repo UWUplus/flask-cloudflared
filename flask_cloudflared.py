@@ -89,10 +89,16 @@ def _run_cloudflared(port):
     return tunnel_url
     
 def _download_cloudflared(cloudflared_path, command):
-    if Path(cloudflared_path, command).exists():
-        return
     system = platform.system()
     machine = platform.machine()
+    if Path(cloudflared_path, command).exists():
+        if (system == "Darwin" and machine == "arm64"):
+            update_cloudflared = subprocess.Popen(['arch', '-x86_64', (cloudflared_path+'/'+'cloudflared'), 'update'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        elif system == "Darwin" and machine == "x86_64":
+            update_cloudflared = subprocess.Popen([(cloudflared_path+'/'+'cloudflared'), 'update'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        else:
+            update_cloudflared = subprocess.Popen([(cloudflared_path+'/'+command), 'update'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        return
     if system == "Windows":
         if machine == "x86_64":
             url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
