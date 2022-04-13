@@ -30,6 +30,8 @@ def _get_command():
             command = "cloudflared-linux-arm"
         elif machine == "arm64":
             command = "cloudflared-linux-arm64"
+        elif machine == "aarch":
+            command = "cloudflared-linux-arm64"
         else:
             raise Exception("{machine} is not supported on Linux".format(machine=machine))
     elif system == "Darwin":
@@ -104,6 +106,8 @@ def _download_cloudflared(cloudflared_path, command):
         elif machine == "arm":
             url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm"
         elif machine == "arm64":
+            url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64"
+        elif machine == "aarch64":
             url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64"
     elif system == "Darwin":
         if machine == "x86_64":
