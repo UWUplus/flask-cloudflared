@@ -100,7 +100,7 @@ def _download_cloudflared(cloudflared_path, command):
             update_cloudflared = subprocess.Popen([(cloudflared_path+'/'+command), 'update'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         return
     if system == "Windows":
-        if machine == "x86_64":
+        if machine == "AMD64":
             url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
         elif machine == "i386":
             url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-386.exe"
