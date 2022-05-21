@@ -15,9 +15,9 @@ def _get_command():
     system = platform.system()
     machine = platform.machine()
     if system == "Windows":
-        if machine == "x86_64":
+        if machine == "AMD64":
             command = "cloudflared-windows-amd64.exe"
-        elif machine == "i386":
+        elif machine == "x86":
             command = "cloudflared-windows-386.exe"
         else:
             raise Exception("{machine} is not supported on Windows".format(machine=machine))
@@ -102,7 +102,7 @@ def _download_cloudflared(cloudflared_path, command):
     if system == "Windows":
         if machine == "AMD64":
             url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
-        elif machine == "i386":
+        elif machine == "x86":
             url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-386.exe"
     elif system == "Linux":
         if machine == "x86_64":
