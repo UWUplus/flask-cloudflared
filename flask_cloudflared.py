@@ -8,6 +8,7 @@ import os
 import platform
 import time
 import re
+from random import randint
 from threading import Timer
 from pathlib import Path
 
@@ -54,7 +55,7 @@ def _extract_tarball(tar_path, filename):
         if item.name.find(".tgz") != -1 or item.name.find(".tar") != -1:
             extract(item.name, "./" + item.name[:item.name.rfind('/')])
 
-def _run_cloudflared(port):
+def _run_cloudflared(port, metrics_port):
     system = platform.system()
     machine = platform.machine()
     command = _get_command()
@@ -69,11 +70,11 @@ def _run_cloudflared(port):
         executable = str(Path(cloudflared_path, command))
     os.chmod(executable, 0o777)
     if (system == "Darwin" and machine == "arm64"):
-        cloudflared = subprocess.Popen(['arch', '-x86_64', executable, 'tunnel', '--url', 'http://127.0.0.1:' + str(port), '--metrics', '127.0.0.1:8099'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        cloudflared = subprocess.Popen(['arch', '-x86_64', executable, 'tunnel', '--url', 'http://127.0.0.1:' + str(port), '--metrics', '127.0.0.1:' + str(metrics_port)], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     else:
-        cloudflared = subprocess.Popen([executable, 'tunnel', '--url', 'http://127.0.0.1:' + str(port), '--metrics', '127.0.0.1:8099'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        cloudflared = subprocess.Popen([executable, 'tunnel', '--url', 'http://127.0.0.1:' + str(port), '--metrics', '127.0.0.1:' + str(metrics_port)], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     atexit.register(cloudflared.terminate)
-    localhost_url = "http://127.0.0.1:8099/metrics"
+    localhost_url = f"http://127.0.0.1:{metrics_port}/metrics"
     attempts = 0
     while attempts < 10:
         try:
@@ -130,17 +131,18 @@ def _download_file(url):
         shutil.copyfileobj(r.raw, f)
     return download_path
 
-def start_cloudflared(port):
-    cloudflared_address = _run_cloudflared(port)
+def start_cloudflared(port, metrics_port):
+    cloudflared_address = _run_cloudflared(port, metrics_port)
     print(f" * Running on {cloudflared_address}")
-    print(f" * Traffic stats available on http://127.0.0.1:8099/metrics")
+    print(f" * Traffic stats available on http://127.0.0.1:{metrics_port}/metrics")
 
 def run_with_cloudflared(app):
     old_run = app.run
 
     def new_run(*args, **kwargs):
         port = kwargs.get('port', 5000)
-        thread = Timer(2, start_cloudflared, args=(port,))
+        metrics_port = randint(8100, 9000)
+        thread = Timer(2, start_cloudflared, args=(port, metrics_port,))
         thread.setDaemon(True)
         thread.start()
         old_run(*args, **kwargs)
