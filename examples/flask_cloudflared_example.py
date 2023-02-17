@@ -9,4 +9,5 @@ def home():
     return "Hello World!" # Serve Hello World
 
 if __name__ == '__main__':
+    # app.run(port=1337, metrics_port=1338) # Run the app on port 1337 and metrics on port 1338
     app.run()

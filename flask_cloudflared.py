@@ -140,10 +140,16 @@ def run_with_cloudflared(app):
     old_run = app.run
 
     def new_run(*args, **kwargs):
+        # Webserver port is 5000 by default.
         port = kwargs.get('port', 5000)
-        metrics_port = randint(8100, 9000)
+        # If metrics_port is not specified, we will use a random port between 8100 and 9000.
+        metrics_port = kwargs.get('metrics_port', randint(8100, 9000))
+        # Removing the port and metrics_port from kwargs to avoid passing them to the Flask app.
+        kwargs.pop('metrics_port', None)
+        # Starting the Cloudflared tunnel in a separate thread.
         thread = Timer(2, start_cloudflared, args=(port, metrics_port,))
         thread.setDaemon(True)
         thread.start()
+        # Running the Flask app.
         old_run(*args, **kwargs)
     app.run = new_run
