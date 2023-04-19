@@ -71,6 +71,24 @@ def _extract_tarball(tar_path, filename):
         if item.name.find(".tgz") != -1 or item.name.find(".tar") != -1:
             extract(item.name, "./" + item.name[:item.name.rfind('/')])
 
+def _download_cloudflared(cloudflared_path, command):
+    system, machine = platform.system(), platform.machine()
+    if Path(cloudflared_path, command).exists():
+        executable = (cloudflared_path+'/'+'cloudflared') if (system == "Darwin" and machine in ["x86_64", "arm64"]) else (cloudflared_path+'/'+command)
+        update_cloudflared = subprocess.Popen([executable, 'update'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        return
+    print(f" * Downloading cloudflared for {system} {machine}...")
+    url = _get_url(system, machine)
+    _download_file(url)
+
+def _download_file(url):
+    local_filename = url.split('/')[-1]
+    r = requests.get(url, stream=True)
+    download_path = str(Path(tempfile.gettempdir(), local_filename))
+    with open(download_path, 'wb') as f:
+        shutil.copyfileobj(r.raw, f)
+    return download_path
+
 def _run_cloudflared(port, metrics_port):
     system, machine = platform.system(), platform.machine()
     command = _get_command(system, machine)
@@ -103,24 +121,6 @@ def _run_cloudflared(port, metrics_port):
         raise Exception(f"! Can't connect to Cloudflare Edge")
 
     return tunnel_url
-
-def _download_cloudflared(cloudflared_path, command):
-    system, machine = platform.system(), platform.machine()
-    if Path(cloudflared_path, command).exists():
-        executable = (cloudflared_path+'/'+'cloudflared') if (system == "Darwin" and machine in ["x86_64", "arm64"]) else (cloudflared_path+'/'+command)
-        update_cloudflared = subprocess.Popen([executable, 'update'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-        return
-    print(f" * Downloading cloudflared for {system} {machine}...")
-    url = _get_url(system, machine)
-    _download_file(url)
-
-def _download_file(url):
-    local_filename = url.split('/')[-1]
-    r = requests.get(url, stream=True)
-    download_path = str(Path(tempfile.gettempdir(), local_filename))
-    with open(download_path, 'wb') as f:
-        shutil.copyfileobj(r.raw, f)
-    return download_path
 
 def start_cloudflared(port, metrics_port):
     cloudflared_address = _run_cloudflared(port, metrics_port)
