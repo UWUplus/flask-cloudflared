@@ -92,19 +92,15 @@ def _run_cloudflared(port, metrics_port):
     atexit.register(cloudflared.terminate)
     localhost_url = f"http://127.0.0.1:{metrics_port}/metrics"
 
-    attempts = 0
-    while attempts < 10:
+    for _ in range(10):
         try:
             tunnel_url = requests.get(localhost_url).text
             tunnel_url = (re.search("(?P<url>https?:\/\/[^\s]+.trycloudflare.com)", tunnel_url).group("url"))
             break
         except:
-            attempts += 1
             time.sleep(3)
-            continue
-
-    if attempts == 10:
-        raise Exception(f"Can't connect to Cloudflare Edge")
+    else:
+        raise Exception(f"! Can't connect to Cloudflare Edge")
 
     return tunnel_url
 
