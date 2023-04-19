@@ -81,12 +81,6 @@ def _run_cloudflared(port, metrics_port):
     else:
         _download_cloudflared(cloudflared_path, command)
 
-    if system == "Darwin":
-        _download_cloudflared(cloudflared_path, "cloudflared-darwin-amd64.tgz")
-        _extract_tarball(cloudflared_path, "cloudflared-darwin-amd64.tgz")
-    else:
-        _download_cloudflared(cloudflared_path, command)
-
     executable = str(Path(cloudflared_path, command))
     os.chmod(executable, 0o777)
 
