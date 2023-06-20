@@ -89,7 +89,7 @@ def _download_file(url):
         shutil.copyfileobj(r.raw, f)
     return download_path
 
-def _run_cloudflared(port, metrics_port):
+def _run_cloudflared(port, metrics_port, tunnel_id=None, config_path=None):
     system, machine = platform.system(), platform.machine()
     command = _get_command(system, machine)
     cloudflared_path = str(Path(tempfile.gettempdir()))
@@ -102,19 +102,35 @@ def _run_cloudflared(port, metrics_port):
     executable = str(Path(cloudflared_path, command))
     os.chmod(executable, 0o777)
 
-    if system == "Darwin" and machine == "arm64":
-        cloudflared = subprocess.Popen(['arch', '-x86_64', executable, 'tunnel', '--url', f'http://127.0.0.1:{port}', '--metrics', f'127.0.0.1:{metrics_port}'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    cloudflared_command = [executable, 'tunnel', '--metrics', f'127.0.0.1:{metrics_port}']
+    if config_path:
+        cloudflared_command += ['--config', config_path, 'run']
+    elif tunnel_id:
+        cloudflared_command += ['--url', f'http://127.0.0.1:{port}', 'run', tunnel_id]
     else:
-        cloudflared = subprocess.Popen([executable, 'tunnel', '--url', f'http://127.0.0.1:{port}', '--metrics', f'127.0.0.1:{metrics_port}'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        cloudflared_command += ['--url', f'http://127.0.0.1:{port}']
+
+    if system == "Darwin" and machine == "arm64":
+        cloudflared = subprocess.Popen(['arch', '-x86_64'] + cloudflared_command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    else:
+        cloudflared = subprocess.Popen(cloudflared_command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
     atexit.register(cloudflared.terminate)
     localhost_url = f"http://127.0.0.1:{metrics_port}/metrics"
 
     for _ in range(10):
         try:
-            tunnel_url = requests.get(localhost_url).text
-            tunnel_url = (re.search("(?P<url>https?:\/\/[^\s]+.trycloudflare.com)", tunnel_url).group("url"))
-            break
+            metrics = requests.get(localhost_url).text
+            if tunnel_id or config_path:
+                # If tunnel_id or config_path is provided, we check for cloudflared_tunnel_ha_connections, as no tunnel URL is available in the metrics
+                if re.search("cloudflared_tunnel_ha_connections\s\d", metrics):
+                    # No tunnel URL is available in the metrics, so we return a generic text
+                    tunnel_url = "preconfigured tunnel URL"
+                    break
+            else:
+                # If neither tunnel_id nor config_path is provided, we check for the tunnel URL in the metrics
+                tunnel_url = (re.search("(?P<url>https?:\/\/[^\s]+.trycloudflare.com)", metrics).group("url"))
+                break
         except:
             time.sleep(3)
     else:
@@ -122,8 +138,8 @@ def _run_cloudflared(port, metrics_port):
 
     return tunnel_url
 
-def start_cloudflared(port, metrics_port):
-    cloudflared_address = _run_cloudflared(port, metrics_port)
+def start_cloudflared(port, metrics_port, tunnel_id=None, config_path=None):
+    cloudflared_address = _run_cloudflared(port, metrics_port, tunnel_id, config_path)
     print(f" * Running on {cloudflared_address}")
     print(f" * Traffic stats available on http://127.0.0.1:{metrics_port}/metrics")
 
@@ -131,16 +147,18 @@ def run_with_cloudflared(app):
     old_run = app.run
 
     def new_run(*args, **kwargs):
-        # Webserver port is 5000 by default.
-        port = kwargs.get('port', 5000)
-        # If metrics_port is not specified, we will use a random port between 8100 and 9000.
-        metrics_port = kwargs.get('metrics_port', randint(8100, 9000))
-        # Removing the port and metrics_port from kwargs to avoid passing them to the Flask app.
-        kwargs.pop('metrics_port', None)
+        port = kwargs.pop('port', 5000)
+        metrics_port = kwargs.pop('metrics_port', randint(8100, 9000))
+        tunnel_id = kwargs.pop('tunnel_id', None)
+        config_path = kwargs.pop('config_path', None)
+
         # Starting the Cloudflared tunnel in a separate thread.
-        thread = Timer(2, start_cloudflared, args=(port, metrics_port,))
-        thread.setDaemon(True)
+        tunnel_args = (port, metrics_port, tunnel_id, config_path)
+        thread = Timer(2, start_cloudflared, args=tunnel_args)
+        thread.daemon = True
         thread.start()
+
         # Running the Flask app.
         old_run(*args, **kwargs)
+
     app.run = new_run
