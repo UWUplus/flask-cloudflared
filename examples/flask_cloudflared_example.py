@@ -10,4 +10,6 @@ def home():
 
 if __name__ == '__main__':
     # app.run(port=1337, metrics_port=1338) # Run the app on port 1337 and metrics on port 1338
-    app.run()
+    # app.run(config_path="/path/to/config.yml") # Run the app with a Cloudflare Tunnel config
+    # app.run(tunnel_id="my-tunnel-id") # Run the app with a Cloudflare Tunnel ID
+    app.run() # Run the app
