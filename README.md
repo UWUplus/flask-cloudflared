@@ -9,6 +9,10 @@ This requires at least `Python 3.6`
 The Flask app will run on port 5000 by default and start the Cloudflared metrics page on a random port between 8100 and 9000.  
 This can be changed by passing the `port` and `metrics_port` arguments to the `app.run()` function after using the `run_with_cloudflared` decorator.
 
+### Custom tunnel domain
+By default, the tunnel will be created with a random subdomain of `trycloudflare.com`.  
+To use custom domains, follow [this tutorial by Cloudflare](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/tunnel-guide/local/) and pass either the `tunnel_id` or `config_path` arguments to the `app.run()` function after using the `run_with_cloudflared` decorator. For an example check out [examples/flask_cloudflared_example.py](https://github.com/UWUplus/flask-cloudflared/blob/main/examples/flask_cloudflared_example.py#L13-L14).
+
 ### Users on Apple Silicon
 Because [cloudflared](https://github.com/cloudflare/cloudflared) doesn't support Darwin arm64 natively yet, Rosetta 2 is used to create a compatibility layer. If you don't have Rosetta 2 installed yet, please check [Apple's support page](https://support.apple.com/en-us/HT211861).
 
