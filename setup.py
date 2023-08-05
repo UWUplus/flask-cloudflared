@@ -17,6 +17,6 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     keywords='flask cloudflared',
-    install_requires=['Flask>=0.8', 'requests'],
+    install_requires=['Flask>=0.8', 'requests', 'tqdm'],
     py_modules=['flask_cloudflared']
 )
