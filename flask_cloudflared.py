@@ -199,8 +199,6 @@ def run_with_cloudflared(app):
     def new_run(*args, **kwargs):
         print(" * Starting Cloudflared tunnel...")
         port = kwargs.get("port", 5000)
-        if len(args) > 1 and args[1].isdigit():
-            port = str(args[1])
 
         metrics_port = kwargs.pop("metrics_port", randint(8100, 9000))
         tunnel_id = kwargs.pop("tunnel_id", None)
