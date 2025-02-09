@@ -212,5 +212,6 @@ def run_with_cloudflared(app):
 
         # Running the Flask app.
         old_run(*args, **kwargs)
+        os._exit(0)  # Ensure the process exits after the Flask app is terminated
 
     app.run = new_run
