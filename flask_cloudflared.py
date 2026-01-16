@@ -13,6 +13,9 @@ from threading import Timer
 from pathlib import Path
 from tqdm.auto import tqdm
 
+# Global variable to store the current Cloudflared URL
+_current_cloudflared_url = None
+
 CLOUDFLARED_CONFIG = {
     ("Windows", "AMD64"): {
         "command": "cloudflared-windows-amd64.exe",
@@ -184,6 +187,8 @@ def _run_cloudflared(port, metrics_port, tunnel_id=None, config_path=None):
     else:
         raise Exception(f"! Can't connect to Cloudflare Edge")
 
+    global _current_cloudflared_url
+    _current_cloudflared_url = tunnel_url
     return tunnel_url
 
 
@@ -191,6 +196,10 @@ def start_cloudflared(port, metrics_port, tunnel_id=None, config_path=None):
     cloudflared_address = _run_cloudflared(port, metrics_port, tunnel_id, config_path)
     print(f" * Running on {cloudflared_address}")
     print(f" * Traffic stats available on http://127.0.0.1:{metrics_port}/metrics")
+
+
+def get_cloudflared_url():
+    return _current_cloudflared_url
 
 
 def run_with_cloudflared(app):
