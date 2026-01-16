@@ -8,6 +8,7 @@ import os
 import platform
 import time
 import re
+import signal
 from random import randint
 from threading import Timer
 from pathlib import Path
@@ -15,6 +16,9 @@ from tqdm.auto import tqdm
 
 # Global variable to store the current Cloudflared URL
 _current_cloudflared_url = None
+
+# Global variable to track the Cloudflared process
+_cloudflared_process = None
 
 CLOUDFLARED_CONFIG = {
     ("Windows", "AMD64"): {
@@ -51,7 +55,7 @@ CLOUDFLARED_CONFIG = {
     },
     ("Darwin", "arm64"): {
         "command": "cloudflared",
-        "url": "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64.tgz",
+        "url": "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-arm64.tgz",
     },
 }
 
@@ -87,18 +91,88 @@ def extract(filename, path):
             extract(item.name, "./" + item.name[: item.name.rfind("/")])
 
 
+def _cleanup_existing_cloudflared():
+    """Clean up any existing Cloudflared processes before starting a new one."""
+    global _cloudflared_process
+
+    try:
+        # Try to terminate the globally tracked process first
+        if _cloudflared_process and _cloudflared_process.poll() is None:
+            _cloudflared_process.terminate()
+            try:
+                _cloudflared_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                _cloudflared_process.kill()
+    except:
+        pass
+
+    # Also try to kill any orphaned cloudflared processes
+    try:
+        if platform.system() == "Windows":
+            os.system("taskkill /f /im cloudflared* >nul 2>&1")
+        else:
+            os.system("pkill -f cloudflared >/dev/null 2>&1")
+    except:
+        pass
+
+
 def _download_cloudflared(cloudflared_path, command):
     system, machine = platform.system(), platform.machine()
-    if Path(cloudflared_path, command).exists():
-        executable = (
-            (cloudflared_path + "/" + "cloudflared")
-            if (system == "Darwin" and machine in ["x86_64", "arm64"])
-            else (cloudflared_path + "/" + command)
-        )
-        update_cloudflared = subprocess.Popen(
-            [executable, "update"], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
-        )
-        return
+
+    # Determine the actual executable path
+    if system == "Darwin" and machine in ["x86_64", "arm64"]:
+        executable_path = Path(cloudflared_path, "cloudflared")
+    else:
+        executable_path = Path(cloudflared_path, command)
+
+    # Check if we need to download or update
+    if executable_path.exists():
+        # Executable exists, try to update it
+        print(f" * Updating cloudflared for {system} {machine}...")
+        try:
+            update_process = subprocess.Popen(
+                [str(executable_path), "update"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            update_process.wait(timeout=30)
+
+            # Check if update was successful by verifying the executable still works
+            try:
+                version_check = subprocess.Popen(
+                    [str(executable_path), "version"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
+                version_check.communicate(timeout=10)
+                if version_check.returncode == 0:
+                    print(f" * Cloudflared updated successfully")
+                    return
+            except:
+                pass
+
+            # If update failed or executable is broken, remove and redownload
+            print(f" * Cloudflared update failed, redownloading...")
+            try:
+                if executable_path.exists():
+                    os.remove(executable_path)
+                # Remove any related files
+                for file in Path(cloudflared_path).glob("cloudflared*"):
+                    try:
+                        if file.is_file():
+                            os.remove(file)
+                    except:
+                        pass
+            except:
+                pass
+        except subprocess.TimeoutExpired:
+            print(f" * Cloudflared update timed out, continuing with existing version")
+            return
+        except Exception as e:
+            print(f" * Cloudflared update error: {e}, continuing with existing version")
+            return
+
+    # Download fresh copy
     print(f" * Downloading cloudflared for {system} {machine}...")
     url = _get_url(system, machine)
     _download_file(url)
@@ -126,12 +200,20 @@ def _download_file(url):
 
 
 def _run_cloudflared(port, metrics_port, tunnel_id=None, config_path=None):
+    # Clean up any existing Cloudflared processes first
+    _cleanup_existing_cloudflared()
+
     system, machine = platform.system(), platform.machine()
     command = _get_command(system, machine)
     cloudflared_path = str(Path(tempfile.gettempdir()))
     if system == "Darwin":
-        _download_cloudflared(cloudflared_path, "cloudflared-darwin-amd64.tgz")
-        _extract_tarball(cloudflared_path, "cloudflared-darwin-amd64.tgz")
+        # Determine the correct filename based on architecture
+        if machine == "arm64":
+            filename = "cloudflared-darwin-arm64.tgz"
+        else:
+            filename = "cloudflared-darwin-amd64.tgz"
+        _download_cloudflared(cloudflared_path, filename)
+        _extract_tarball(cloudflared_path, filename)
     else:
         _download_cloudflared(cloudflared_path, command)
 
@@ -151,18 +233,14 @@ def _run_cloudflared(port, metrics_port, tunnel_id=None, config_path=None):
     else:
         cloudflared_command += ["--url", f"http://127.0.0.1:{port}"]
 
-    if system == "Darwin" and machine == "arm64":
-        cloudflared = subprocess.Popen(
-            ["arch", "-x86_64"] + cloudflared_command,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
-        )
-    else:
-        cloudflared = subprocess.Popen(
-            cloudflared_command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
-        )
+    cloudflared = subprocess.Popen(
+        cloudflared_command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
+    )
 
-    atexit.register(cloudflared.terminate)
+    global _cloudflared_process
+    _cloudflared_process = cloudflared
+
+    atexit.register(_cleanup_existing_cloudflared)
     localhost_url = f"http://127.0.0.1:{metrics_port}/metrics"
 
     for _ in range(10):
@@ -200,6 +278,17 @@ def start_cloudflared(port, metrics_port, tunnel_id=None, config_path=None):
 
 def get_cloudflared_url():
     return _current_cloudflared_url
+
+
+def cleanup_cloudflared():
+    """
+    Manually clean up Cloudflared processes and reset the module state.
+    Useful for testing or when you need to force a restart.
+    """
+    global _current_cloudflared_url, _cloudflared_process
+    _cleanup_existing_cloudflared()
+    _current_cloudflared_url = None
+    _cloudflared_process = None
 
 
 def run_with_cloudflared(app):
