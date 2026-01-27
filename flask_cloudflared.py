@@ -109,9 +109,14 @@ def _cleanup_existing_cloudflared():
     # Also try to kill any orphaned cloudflared processes
     try:
         if platform.system() == "Windows":
-            os.system("taskkill /f /im cloudflared* >nul 2>&1")
+            subprocess.call(
+                ["taskkill", "/f", "/im", "cloudflared*"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
         else:
-            os.system("pkill -f cloudflared >/dev/null 2>&1")
+            # Skip orphaned process cleanup in environments where pkill has issues
+            pass
     except:
         pass
 
@@ -130,10 +135,16 @@ def _download_cloudflared(cloudflared_path, command):
         # Executable exists, try to update it
         print(f" * Updating cloudflared for {system} {machine}...")
         try:
+            # Set up preexec_fn safely - os.setsid may not be available in all environments
+            preexec_fn = None
+            if hasattr(os, 'setsid'):
+                preexec_fn = os.setsid
+
             update_process = subprocess.Popen(
                 [str(executable_path), "update"],
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stderr=subprocess.DEVNULL,
+                preexec_fn=preexec_fn
             )
             update_process.wait(timeout=30)
 
@@ -172,7 +183,6 @@ def _download_cloudflared(cloudflared_path, command):
             print(f" * Cloudflared update error: {e}, continuing with existing version")
             return
 
-    # Download fresh copy
     print(f" * Downloading cloudflared for {system} {machine}...")
     url = _get_url(system, machine)
     _download_file(url)
@@ -223,15 +233,13 @@ def _run_cloudflared(port, metrics_port, tunnel_id=None, config_path=None):
     cloudflared_command = [
         executable,
         "tunnel",
-        "--metrics",
-        f"127.0.0.1:{metrics_port}",
     ]
     if config_path:
         cloudflared_command += ["--config", config_path, "run"]
     elif tunnel_id:
-        cloudflared_command += ["--url", f"http://127.0.0.1:{port}", "run", tunnel_id]
+        cloudflared_command += ["run", tunnel_id, "--metrics", f"127.0.0.1:{metrics_port}"]
     else:
-        cloudflared_command += ["--url", f"http://127.0.0.1:{port}"]
+        cloudflared_command += ["--metrics", f"127.0.0.1:{metrics_port}", "--url", f"http://127.0.0.1:{port}"]
 
     cloudflared = subprocess.Popen(
         cloudflared_command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
@@ -309,7 +317,10 @@ def run_with_cloudflared(app):
         thread.start()
 
         # Running the Flask app.
-        old_run(*args, **kwargs)
-        os._exit(0)  # Ensure the process exits after the Flask app is terminated
+        try:
+            old_run(*args, **kwargs)
+        finally:
+            # Clean up cloudflared process when Flask app exits
+            _cleanup_existing_cloudflared()
 
     app.run = new_run
