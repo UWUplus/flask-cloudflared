@@ -8,6 +8,7 @@ This requires at least `Python 3.6`
 ## Behavior
 The Flask app will run on port 5000 by default and start the Cloudflared metrics page on a random port between 8100 and 9000.  
 This can be changed by passing the `port` and `metrics_port` arguments to the `app.run()` function after using the `run_with_cloudflared` decorator.
+Using `get_cloudflared_url` the tunnel URL can be returned.
 
 ### Custom tunnel domain
 By default, the tunnel will be created with a random subdomain of `trycloudflare.com`.  
